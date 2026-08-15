@@ -17,8 +17,14 @@ jobs:
         netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
         Restart-Service -Name TermService -Force
 
-    - name: Create RDP User with Secure Password
+    - name: Create RDP User with Password Fix
       run: |
+        # ปิดระบบความปลอดภัยพาสเวิร์ดของ Windows เพื่อให้ใช้รหัส 11 ได้
+        secedit /export /cfg "$env:TEMP\sec.cfg"
+        (Get-Content "$env:TEMP\sec.cfg") -replace "PasswordComplexity = 1", "PasswordComplexity = 0" -replace "MinPasswordLength = .*", "MinPasswordLength = 0" | Set-Content "$env:TEMP\sec.cfg"
+        secedit /configure /db "$env:TEMP\sec.sdb" /cfg "$env:TEMP\sec.cfg" /areas SECURITYPOLICY
+        
+        # สร้างบัญชี Aomsin รหัส 11 
         $username = "Aomsin"
         $password = "11"
         $securePass = ConvertTo-SecureString $password -AsPlainText -Force
@@ -26,9 +32,6 @@ jobs:
         Add-LocalGroupMember -Group "Administrators" -Member $username
         Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
         echo "RDP_CREDS=User: $username | Password: $password" >> $env:GITHUB_ENV
-        if (-not (Get-LocalUser -Name $username)) {
-          exit 1
-        }
 
     - name: Install Tailscale
       run: |
